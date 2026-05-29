@@ -14,7 +14,6 @@ local PROPERTY_TO_TWEEN_PROPERTY = {
 	["color_r"] = hash("color.x"),
 	["color_g"] = hash("color.y"),
 	["color_b"] = hash("color.z"),
-	["color_a"] = hash("color.w"),
 	["shadow_r"] = hash("shadow.x"),
 	["shadow_g"] = hash("shadow.y"),
 	["shadow_b"] = hash("shadow.z"),
@@ -79,6 +78,15 @@ local EASING_TO_DEFOLD_EASING = {
 	["outsine"] = go.EASING_OUTSINE,
 }
 
+
+-- color_a lives on the sprite component as tint.w, not on the GO directly
+local SPRITE_COMPONENT_PROPERTIES = {
+	["color_a"] = hash("tint.w"),
+}
+
+local function sprite_url(node)
+	return msg.url(nil, node, "sprite")
+end
 
 local MSG_ENABLE_VALUE = {
 	["true"] = hash("enable"),
@@ -161,8 +169,15 @@ end
 ---@param node node
 ---@param property_id string
 local function stop_tween(node, property_id)
-	local defold_property_id = PROPERTY_TO_TWEEN_PROPERTY[property_id]
+	local sprite_prop = SPRITE_COMPONENT_PROPERTIES[property_id]
+	if sprite_prop then
+		if go.exists(node) then
+			go.cancel_animations(sprite_url(node), sprite_prop)
+		end
+		return
+	end
 
+	local defold_property_id = PROPERTY_TO_TWEEN_PROPERTY[property_id]
 	if go.exists(node) then
 		go.cancel_animations(node, defold_property_id)
 	end
@@ -174,6 +189,12 @@ end
 ---@param value number
 ---@return boolean @true if success
 local function set_node_property(node, property_id, value)
+	local sprite_prop = SPRITE_COMPONENT_PROPERTIES[property_id]
+	if sprite_prop then
+		go.set(sprite_url(node), sprite_prop, value)
+		return true
+	end
+
 	local defold_property_id = PROPERTY_TO_TRIGGER_PROPERTY[property_id] --[[@as string]]
 
 	if defold_property_id then
@@ -209,6 +230,16 @@ end
 ---@param duration number
 ---@param end_value number
 local function tween_animation_key(node, property_id, easing, duration, end_value)
+	local sprite_prop = SPRITE_COMPONENT_PROPERTIES[property_id]
+	if sprite_prop then
+		if duration == 0 then
+			go.set(sprite_url(node), sprite_prop, end_value)
+		else
+			go.animate(sprite_url(node), sprite_prop, go.PLAYBACK_ONCE_FORWARD, end_value, easing, duration)
+		end
+		return
+	end
+
 	if duration == 0 then
 		set_node_property(node, property_id, end_value)
 	else
